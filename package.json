@@ -1,0 +1,17 @@
+{
+  "name": "deye-svitlobot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "logs": "wrangler tail",
+    "discover": "node --env-file=.dev.vars scripts/discover.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  },
+  "main": "gcp/function.mjs",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3"
+  }
+}

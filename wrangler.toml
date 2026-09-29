@@ -1,0 +1,22 @@
+name = "deye-svitlobot"
+main = "src/index.js"
+workers_dev = false
+compatibility_date = "2026-09-01"
+
+[triggers]
+crons = ["* * * * *"]
+
+# Кеш токена Deye. Wrangler сам створить namespace при першому `wrangler deploy`.
+[[kv_namespaces]]
+binding = "TOKENS"
+
+[vars]
+DEYE_BASE_URL = "https://eu1-developer.deyecloud.com/v1.0"
+# Ключ показника мережі з device/latest (дізнатись: npm run discover)
+GRID_KEY = "GridVoltageL1L2"
+# Мережа є, якщо значення показника більше цього порогу (В)
+GRID_MIN = "100"
+
+# Секрети (НЕ у файлі, а через `wrangler secret put`):
+#   DEYE_APP_ID, DEYE_APP_SECRET, DEYE_EMAIL, DEYE_PASSWORD,
+#   DEYE_DEVICE_SN, SVITLOBOT_CHANNEL_KEY
