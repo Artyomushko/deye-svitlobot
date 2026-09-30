@@ -138,7 +138,7 @@ done
 
 gcloud pubsub topics create deye-tick
 
-gcloud functions deploy deye-svitlobot --gen2 --runtime=nodejs20 --region=europe-west1 \
+gcloud functions deploy deye-svitlobot --gen2 --runtime=nodejs24 --region=europe-west1 \
   --source=. --entry-point=deyeSvitlobot --trigger-topic=deye-tick \
   --set-secrets=DEYE_APP_ID=DEYE_APP_ID:latest,DEYE_APP_SECRET=DEYE_APP_SECRET:latest,DEYE_EMAIL=DEYE_EMAIL:latest,DEYE_PASSWORD=DEYE_PASSWORD:latest,DEYE_DEVICE_SN=DEYE_DEVICE_SN:latest,SVITLOBOT_CHANNEL_KEY=SVITLOBOT_CHANNEL_KEY:latest
 
