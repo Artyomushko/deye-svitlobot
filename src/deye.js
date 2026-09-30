@@ -6,30 +6,17 @@ async function sha256Hex(s) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-// POST до Deye з повторами: тимчасові збої (HTML замість JSON, 5xx, мережа) не мають
-// призводити до хибного "світла немає", бо тоді пінг не надсилається.
-const ATTEMPTS = 3;
-const RETRY_DELAY_MS = 1000;
-
+// POST до Deye. Якщо відповідь не JSON (напр. 403 від WAF/CDN), кидаємо помилку з
+// повним статусом, заголовками й тілом, щоб у логах було видно, хто і чому відмовив.
 async function deyePost(url, init) {
-  let lastError;
-  for (let i = 1; i <= ATTEMPTS; i++) {
-    try {
-      const res = await fetch(url, { method: 'POST', ...init });
-      const text = await res.text();
-      try {
-        return JSON.parse(text);
-      } catch {
-        const snippet = text.replace(/\s+/g, ' ').slice(0, 120);
-        throw new Error(`Deye: відповідь не JSON (HTTP ${res.status}): ${snippet}`);
-      }
-    } catch (e) {
-      lastError = e;
-      console.warn(`Deye запит, спроба ${i}/${ATTEMPTS}: ${e.message}`);
-      if (i < ATTEMPTS) await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
-    }
+  const res = await fetch(url, { method: 'POST', ...init });
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    const headers = JSON.stringify(Object.fromEntries(res.headers));
+    throw new Error(`Deye: відповідь не JSON (HTTP ${res.status}) headers=${headers} body=${text}`);
   }
-  throw lastError;
 }
 
 async function fetchToken(env) {
