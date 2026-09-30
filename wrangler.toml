@@ -24,7 +24,3 @@ GRID_MIN = "100"
 # Зберігати логи воркера в дашборді Cloudflare (Workers Logs)
 [observability]
 enabled = true
-
-# Deye Cloud (CloudFront) віддає 403 з деяких регіонів; тримаємо воркер ближче до EU.
-[placement]
-region = "aws:eu-central-1"
