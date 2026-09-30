@@ -6,9 +6,34 @@ async function sha256Hex(s) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+// POST до Deye з повторами: тимчасові збої (HTML замість JSON, 5xx, мережа) не мають
+// призводити до хибного "світла немає", бо тоді пінг не надсилається.
+const ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1000;
+
+async function deyePost(url, init) {
+  let lastError;
+  for (let i = 1; i <= ATTEMPTS; i++) {
+    try {
+      const res = await fetch(url, { method: 'POST', ...init });
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        const snippet = text.replace(/\s+/g, ' ').slice(0, 120);
+        throw new Error(`Deye: відповідь не JSON (HTTP ${res.status}): ${snippet}`);
+      }
+    } catch (e) {
+      lastError = e;
+      console.warn(`Deye запит, спроба ${i}/${ATTEMPTS}: ${e.message}`);
+      if (i < ATTEMPTS) await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+    }
+  }
+  throw lastError;
+}
+
 async function fetchToken(env) {
-  const res = await fetch(`${env.DEYE_BASE_URL}/account/token?appId=${env.DEYE_APP_ID}`, {
-    method: 'POST',
+  const json = await deyePost(`${env.DEYE_BASE_URL}/account/token?appId=${env.DEYE_APP_ID}`, {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       appSecret: env.DEYE_APP_SECRET,
@@ -16,7 +41,6 @@ async function fetchToken(env) {
       password: await sha256Hex(env.DEYE_PASSWORD),
     }),
   });
-  const json = await res.json();
   if (!json.success || !json.accessToken) {
     throw new Error(`Deye token error: ${json.code} ${json.msg}`);
   }
@@ -39,12 +63,10 @@ async function getToken(env, force = false) {
 }
 
 async function latest(env, token) {
-  const res = await fetch(`${env.DEYE_BASE_URL}/device/latest`, {
-    method: 'POST',
+  return deyePost(`${env.DEYE_BASE_URL}/device/latest`, {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ deviceList: [env.DEYE_DEVICE_SN] }),
   });
-  return res.json();
 }
 
 export async function getDeviceData(env) {
