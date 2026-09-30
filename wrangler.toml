@@ -20,3 +20,7 @@ GRID_MIN = "100"
 # Секрети (НЕ у файлі, а через `wrangler secret put`):
 #   DEYE_APP_ID, DEYE_APP_SECRET, DEYE_EMAIL, DEYE_PASSWORD,
 #   DEYE_DEVICE_SN, SVITLOBOT_CHANNEL_KEY
+
+# Зберігати логи воркера в дашборді Cloudflare (Workers Logs)
+[observability]
+enabled = true
