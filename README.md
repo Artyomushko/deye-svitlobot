@@ -50,7 +50,12 @@ npm run discover                    # виведе всі показники п�
 
 Секрети ніколи не кладіть у код чи в git. Нижче кожна платформа зберігає їх у власному сховищі.
 
-### Cloudflare Workers (рекомендовано, перевірено)
+### Cloudflare Workers (працює, але Deye може блокувати)
+
+> **Увага.** Deye Cloud (CloudFront) блокує запити з вихідних IP Cloudflare: спершу епізодично, а з
+> 30.09.2026 постійно. У відповідь приходить HTTP 403 із HTML-сторінкою `ACCESS IS BLOCKED`.
+> Закріплення регіону (`[placement]`) не допомогло: блокується сама адреса, а не колокація.
+> Якщо бачите таку помилку в логах, переходьте на GCP (нижче).
 
 Безкоштовний тариф: 100 000 запитів на день, cron раз на хвилину це 1440.
 
@@ -69,6 +74,8 @@ npm run logs                        # живі логи
 ```
 
 У логах має бути `GridVoltageL1L2=221.5V -> мережа є` і `svitlobot ping: 200`.
+`[observability]` у `wrangler.toml` вмикає збереження логів (Dashboard → Workers & Pages → Observability),
+а `npm run logs` показує лише живий потік.
 `workers_dev = false` у `wrangler.toml`: публічна адреса воркеру не потрібна.
 
 ### AWS Lambda + EventBridge (не перевірено)
@@ -105,20 +112,29 @@ aws events put-targets --rule deye-svitlobot-tick \
 або зберігайте в **Secrets Manager / SSM Parameter Store (SecureString)** і читайте в адаптері.
 Токен Deye кешується лише в пам'яті теплого інстансу, тому на холодному старті вхід повторюється.
 
-### Google Cloud Functions + Cloud Scheduler (не перевірено)
+### Google Cloud Functions + Cloud Scheduler (перевірено, рекомендовано)
 
-Безкоштовно: 2 млн викликів на місяць, 3 завдання Cloud Scheduler.
+Безкоштовно: 2 млн викликів на місяць, 3 завдання Cloud Scheduler. Потрібен проєкт GCP з підключеним
+білінг-акаунтом (без нього API не вмикаються, хоча списань у межах безкоштовного рівня немає).
+Після `gcloud auth login` задайте проєкт: `gcloud config set project <ID>`.
 
 ```bash
 gcloud services enable cloudfunctions.googleapis.com run.googleapis.com cloudbuild.googleapis.com \
-  cloudscheduler.googleapis.com pubsub.googleapis.com secretmanager.googleapis.com
+  cloudscheduler.googleapis.com pubsub.googleapis.com secretmanager.googleapis.com \
+  artifactregistry.googleapis.com eventarc.googleapis.com
 
 # Секрети в Secret Manager (значення читаються зі stdin, а не з аргументів)
 for k in DEYE_APP_ID DEYE_APP_SECRET DEYE_EMAIL DEYE_PASSWORD DEYE_DEVICE_SN SVITLOBOT_CHANNEL_KEY; do
   read -rs -p "$k: " v; echo
   printf %s "$v" | gcloud secrets create $k --data-file=-
 done
-# Сервісному акаунту функції потрібна роль roles/secretmanager.secretAccessor на ці секрети.
+# Сервісному акаунту функції (за замовчуванням <НОМЕР_ПРОЄКТУ>-compute@developer.gserviceaccount.com)
+# потрібна роль roles/secretmanager.secretAccessor на кожен із секретів:
+for k in DEYE_APP_ID DEYE_APP_SECRET DEYE_EMAIL DEYE_PASSWORD DEYE_DEVICE_SN SVITLOBOT_CHANNEL_KEY; do
+  gcloud secrets add-iam-policy-binding $k \
+    --member="serviceAccount:<НОМЕР_ПРОЄКТУ>-compute@developer.gserviceaccount.com" \
+    --role=roles/secretmanager.secretAccessor
+done
 
 gcloud pubsub topics create deye-tick
 
@@ -131,6 +147,8 @@ gcloud scheduler jobs create pubsub deye-tick --location=europe-west1 \
 ```
 
 `--source=.` враховує `.gitignore`, тому `.dev.vars` не потрапить у пакет.
+Логи: `gcloud functions logs read deye-svitlobot --gen2 --region=europe-west1`.
+Перший запуск Scheduler відбувається на початку наступної хвилини, тож у логах записи з'являться не одразу.
 Точка входу описана в `gcp/function.mjs`, а `main` у `package.json` вказує на неї.
 
 ## Як це влаштовано
@@ -146,6 +164,9 @@ gcloud scheduler jobs create pubsub deye-tick --location=europe-west1 \
 - Якщо Deye API не відповідає, пінг не надсилається (стан невідомий), і Світлобот вважає, що світла немає.
   Тимчасові збої Deye можуть давати хибні відключення.
 - У Deye Cloud є ліміти запитів. Тому токен кешується, а не запитується щоразу.
+- Deye може блокувати вихідні IP хмарних платформ (HTTP 403 від CloudFront). Помилка з'являється в
+  логах із заголовками й тілом відповіді. Повторні спроби не додано навмисно, щоб не збільшувати навантаження.
+  Якщо блокують і GCP, залишається VPS із постійним IP, який можна погодити з підтримкою Deye.
 
 ## Ліцензія
 
